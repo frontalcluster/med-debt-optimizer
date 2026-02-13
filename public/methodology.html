@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Methodology | Pay or PSLF?</title>
+  <meta name="description" content="Methodology and assumptions behind the Pay or PSLF medical school debt optimizer.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
+  <style>
+    :root {
+      --bg: #fafafa;
+      --card: #ffffff;
+      --text: #1a1a1a;
+      --muted: #666;
+      --border: #e0e0e0;
+      --accent: #2563eb;
+    }
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      padding: 2rem;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    h1 { font-size: 1.75rem; margin-bottom: 0.5rem; }
+    h2 { font-size: 1.25rem; margin: 2rem 0 1rem; color: var(--accent); }
+    h3 { font-size: 1rem; margin: 1.5rem 0 0.5rem; }
+    
+    p { margin-bottom: 1rem; }
+    
+    a { color: var(--accent); }
+    
+    .back-link {
+      display: inline-block;
+      margin-bottom: 2rem;
+      text-decoration: none;
+    }
+    
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+    
+    th, td {
+      text-align: left;
+      padding: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    th { font-weight: 600; }
+    
+    code {
+      background: #f0f0f0;
+      padding: 0.1rem 0.3rem;
+      border-radius: 3px;
+      font-size: 0.85em;
+    }
+    
+    ul, ol {
+      margin: 1rem 0 1rem 1.5rem;
+    }
+    
+    li { margin-bottom: 0.5rem; }
+    
+    .formula {
+      background: #f8f9fa;
+      padding: 1rem;
+      border-radius: 6px;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 0.9rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+  </style>
+</head>
+<body>
+  <a href="/" class="back-link">← Back to Calculator</a>
+  
+  <h1>Methodology & Assumptions</h1>
+  <p>This document explains how the Pay or PSLF calculator works and the assumptions behind each calculation.</p>
+  
+  <h2>Core Comparison Metric: Net Present Value (NPV)</h2>
+  
+  <p>All strategies are compared using <strong>Net Present Value</strong> at a user-configurable discount rate (default 5%). NPV accounts for the time value of money—a dollar paid 10 years from now is worth less than a dollar paid today.</p>
+  
+  <div class="formula">
+    NPV = Σ (Payment_year_n / (1 + discount_rate)^n) + Tax_on_forgiveness / (1 + discount_rate)^forgiveness_year
+  </div>
+  
+  <p><strong>Why NPV instead of total paid?</strong> Because forgiveness strategies involve paying less now but potentially paying taxes later. A simple total ignores when payments occur. NPV lets us fairly compare "pay $200k over 10 years" vs "pay $80k over 10 years then pay $60k in taxes in year 20."</p>
+  
+  <h2>IDR Payment Calculations</h2>
+  
+  <p>Income-Driven Repayment (IDR) payments are calculated as:</p>
+  
+  <div class="formula">
+    Monthly Payment = (AGI - (Poverty_Line × Multiplier)) × Rate / 12
+  </div>
+  
+  <h3>Plan Parameters</h3>
+  
+  <table>
+    <thead>
+      <tr>
+        <th>Plan</th>
+        <th>% of Discretionary</th>
+        <th>Poverty Multiplier</th>
+        <th>Forgiveness</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>SAVE</td><td>10%</td><td>2.25×</td><td>25 years</td></tr>
+      <tr><td>PAYE</td><td>10%</td><td>1.50×</td><td>20 years</td></tr>
+      <tr><td>IBR (new)</td><td>10%</td><td>1.50×</td><td>20 years</td></tr>
+      <tr><td>IBR (old)</td><td>15%</td><td>1.50×</td><td>25 years</td></tr>
+      <tr><td>ICR</td><td>20%</td><td>1.00×</td><td>25 years</td></tr>
+    </tbody>
+  </table>
+  
+  <p><strong>SAVE Note:</strong> The SAVE plan is currently enjoined by litigation. When enabled, we model its interest subsidy (government covers unpaid interest) which prevents negative amortization.</p>
+  
+  <h3>Married Filing Status</h3>
+  
+  <p>For married borrowers:</p>
+  <ul>
+    <li><strong>MFJ (Married Filing Jointly):</strong> Combined spousal income used for payment calculation</li>
+    <li><strong>MFS (Married Filing Separately):</strong> Only borrower's income used, but higher tax rate applies</li>
+  </ul>
+  
+  <p>The calculator compares the total cost (loan payment + tax increase) of each strategy. MFS often wins when the spouse is a high earner.</p>
+  
+  <h2>PSLF (Public Service Loan Forgiveness)</h2>
+  
+  <ul>
+    <li>Requires 120 qualifying payments at a PSLF-eligible employer</li>
+    <li>Forgiveness is <strong>tax-free</strong> (unlike IDR forgiveness)</li>
+    <li>Uses an underlying IDR plan for payment calculation (we default to PAYE)</li>
+    <li>Residency and fellowship years count if at a 501(c)(3) hospital</li>
+  </ul>
+  
+  <p><strong>PSLF Confidence:</strong> We let users input their belief that PSLF will continue to exist and function. This affects recommendation confidence but not NPV calculation. Use this to express uncertainty about program continuation.</p>
+  
+  <h2>Refinancing</h2>
+  
+  <p>Standard amortization formula:</p>
+  
+  <div class="formula">
+    Monthly Payment = Principal × (r × (1+r)^n) / ((1+r)^n - 1)
+    <br>where r = annual_rate/12, n = months
+  </div>
+  
+  <p>Default assumptions:</p>
+  <ul>
+    <li>10-year term</li>
+    <li>5.5% interest rate (adjust based on your expected rate)</li>
+    <li>No forgiveness, no federal protections</li>
+  </ul>
+  
+  <h2>Aggressive Payoff Model</h2>
+  
+  <p>The "live like a resident" strategy models:</p>
+  
+  <ol>
+    <li><strong>Training years:</strong> Interest-only payments (balance stays flat)</li>
+    <li><strong>Aggressive years:</strong> All income above living expenses goes to loans
+      <div class="formula">
+        Monthly Payment = (Attending_Salary × (1 - Tax_Rate) - Living_Expenses) / 12
+      </div>
+    </li>
+    <li><strong>Standard period:</strong> If balance remains, standard 10-year amortization</li>
+  </ol>
+  
+  <p>We assume a 30% effective tax rate for attending-level income. This is a simplification—actual rates vary by state and deductions.</p>
+  
+  <h2>Income Projections</h2>
+  
+  <h3>Training Salaries (2024 National Averages)</h3>
+  
+  <table>
+    <thead><tr><th>Year</th><th>Salary</th></tr></thead>
+    <tbody>
+      <tr><td>PGY-1</td><td>$64,000</td></tr>
+      <tr><td>PGY-2</td><td>$66,000</td></tr>
+      <tr><td>PGY-3</td><td>$69,000</td></tr>
+      <tr><td>PGY-4</td><td>$72,000</td></tr>
+      <tr><td>PGY-5</td><td>$75,000</td></tr>
+      <tr><td>Fellow</td><td>$85,000</td></tr>
+    </tbody>
+  </table>
+  
+  <h3>Attending Salaries</h3>
+  
+  <p>We use median specialty salaries from the Medscape Physician Compensation Report (2024) and Doximity. Examples:</p>
+  
+  <table>
+    <thead><tr><th>Specialty</th><th>Median</th><th>Range (P25-P75)</th></tr></thead>
+    <tbody>
+      <tr><td>Family Medicine</td><td>$255,000</td><td>$210k - $300k</td></tr>
+      <tr><td>Internal Medicine</td><td>$275,000</td><td>$230k - $330k</td></tr>
+      <tr><td>Cardiology</td><td>$510,000</td><td>$400k - $650k</td></tr>
+      <tr><td>Orthopedic Surgery</td><td>$560,000</td><td>$450k - $750k</td></tr>
+    </tbody>
+  </table>
+  
+  <p>Income is projected to grow at 3% annually (adjustable via discount rate assumptions).</p>
+  
+  <h2>Tax on Forgiveness</h2>
+  
+  <p>For IDR forgiveness (not PSLF), the forgiven amount is taxed as ordinary income. We estimate:</p>
+  
+  <ol>
+    <li>Federal tax at marginal rate based on projected income + forgiveness</li>
+    <li>State tax at top marginal rate (simplified)</li>
+  </ol>
+  
+  <p>This is a significant factor. For example, $300k forgiven at ~35% marginal rate = ~$105k tax bill.</p>
+  
+  <h2>Key Heuristic: Debt-to-Income Ratio</h2>
+  
+  <div class="formula">
+    DTI = Total_Debt / Expected_Attending_Salary
+  </div>
+  
+  <p>General guidance:</p>
+  <ul>
+    <li><strong>DTI < 0.5:</strong> Refinancing often wins</li>
+    <li><strong>DTI 0.5 - 1.5:</strong> Depends on PSLF eligibility and preferences</li>
+    <li><strong>DTI > 1.5:</strong> Forgiveness strategies almost always win</li>
+  </ul>
+  
+  <h2>Limitations & Caveats</h2>
+  
+  <ul>
+    <li><strong>Simplified taxes:</strong> We don't model all deductions, credits, or state-specific rules</li>
+    <li><strong>Income uncertainty:</strong> Actual salaries vary by location, employer, and practice type</li>
+    <li><strong>Policy risk:</strong> IDR and PSLF rules could change</li>
+    <li><strong>No NHSC/Military:</strong> We don't model loan repayment assistance programs</li>
+    <li><strong>No employer contributions:</strong> Some employers offer student loan benefits</li>
+    <li><strong>Single borrower:</strong> We don't model spousal consolidation (generally inadvisable anyway)</li>
+  </ul>
+  
+  <h2>Data Sources</h2>
+  
+  <table>
+    <thead><tr><th>Data</th><th>Source</th><th>Updated</th></tr></thead>
+    <tbody>
+      <tr><td>Poverty Guidelines</td><td>HHS</td><td>2024</td></tr>
+      <tr><td>Tax Brackets</td><td>IRS</td><td>2024</td></tr>
+      <tr><td>Specialty Salaries</td><td>Medscape, Doximity</td><td>2024</td></tr>
+      <tr><td>IDR Plan Rules</td><td>Federal Student Aid</td><td>2024</td></tr>
+    </tbody>
+  </table>
+  
+  <h2>Privacy</h2>
+  
+  <p>All calculations run entirely in your browser. No data is sent to any server. We don't use cookies or tracking. Your financial information never leaves your device.</p>
+  
+  <div class="card" style="margin-top: 3rem;">
+    <p><strong>Questions or corrections?</strong> This is an open-source project. File an issue or submit a PR on <a href="https://github.com/frontalcluster/med-debt-optimizer">GitHub</a>.</p>
+  </div>
+</body>
+</html>

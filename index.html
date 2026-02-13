@@ -3,7 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Medical School Debt Optimizer</title>
+  <title>Pay or PSLF? | Medical School Debt Optimizer</title>
+  <meta name="description" content="Free calculator comparing PSLF, IDR forgiveness, and refinancing strategies for physicians and medical professionals. Find your optimal student loan repayment path.">
+  <meta name="keywords" content="PSLF, medical school debt, student loans, physician finance, loan forgiveness, IDR, refinance, doctor loans">
+  <meta property="og:title" content="Pay or PSLF? | Medical School Debt Optimizer">
+  <meta property="og:description" content="Compare loan repayment strategies and find your optimal path. Free tool for physicians and medical professionals.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://payorpslf.com">
+  <link rel="canonical" href="https://payorpslf.com">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
   <style>
     :root {
       --bg: #fafafa;
@@ -220,6 +228,154 @@
       font-size: 0.75rem;
       color: var(--muted);
     }
+    
+    .toggle-section {
+      border-top: 1px solid var(--border);
+      margin-top: 1rem;
+      padding-top: 1rem;
+    }
+    
+    .toggle-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    
+    .toggle-header input {
+      width: auto;
+    }
+    
+    .toggle-content {
+      display: none;
+      margin-top: 1rem;
+    }
+    
+    .toggle-content.visible {
+      display: block;
+    }
+    
+    .inline-form {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      line-height: 2.5;
+    }
+    
+    .inline-form input, .inline-form select {
+      width: auto;
+      display: inline-block;
+    }
+    
+    .inline-form input[type="number"] {
+      width: 100px;
+    }
+    
+    .explanation {
+      background: var(--bg);
+      border-left: 3px solid var(--accent);
+      padding: 0.75rem 1rem;
+      margin-top: 1rem;
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+    
+    .share-button {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 0.5rem 1rem;
+      font-size: 0.875rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      width: auto;
+    }
+    
+    .share-button:hover {
+      background: var(--border);
+    }
+    
+    .footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    
+    .footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    
+    .footer a:hover {
+      text-decoration: underline;
+    }
+    
+    .footer-links {
+      display: flex;
+      gap: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    
+    .last-updated {
+      font-size: 0.75rem;
+    }
+    
+    .aggressive-results {
+      background: #fef3c7;
+      border: 2px solid var(--warning);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-top: 1rem;
+    }
+    
+    .aggressive-results h4 {
+      color: var(--warning);
+      margin-bottom: 0.5rem;
+    }
+    
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    
+    .comparison-item {
+      text-align: center;
+      padding: 1rem;
+      background: white;
+      border-radius: 6px;
+    }
+    
+    .comparison-item.winner {
+      border: 2px solid var(--success);
+    }
+    
+    .comparison-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+    }
+    
+    .comparison-value {
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    
+    @media (max-width: 600px) {
+      .metrics, .comparison-grid {
+        grid-template-columns: 1fr;
+      }
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 <body>
@@ -267,7 +423,7 @@
           </select>
         </div>
         <div class="form-group checkbox-group">
-          <input type="checkbox" id="pslfEligible" checked>
+          <input type="checkbox" id="pslfEligible">
           <label for="pslfEligible">PSLF-Eligible Employer</label>
         </div>
       </div>
@@ -319,6 +475,36 @@
           <label for="saveAvailable">SAVE Plan Available</label>
         </div>
       </div>
+      
+      <div class="toggle-section">
+        <div class="toggle-header">
+          <input type="checkbox" id="aggressivePayoff">
+          <label for="aggressivePayoff"><strong>Model aggressive payoff strategy</strong></label>
+        </div>
+        <div class="toggle-content" id="aggressiveContent">
+          <p class="inline-form">
+            As an attending, I'll live on 
+            <span style="display: inline-flex; align-items: center;">$<input type="number" id="livingExpenses" value="80000" min="30000" max="200000" step="5000"></span>
+            per year for 
+            <select id="aggressiveYears">
+              <option value="1">1 year</option>
+              <option value="2">2 years</option>
+              <option value="3" selected>3 years</option>
+              <option value="4">4 years</option>
+              <option value="5">5 years</option>
+            </select>
+            after finishing training.
+          </p>
+          <p class="inline-form" style="margin-top: 0.5rem;">
+            Expected refinance rate: 
+            <span style="display: inline-flex; align-items: center;"><input type="number" id="aggressiveRefiRate" value="5.5" min="3" max="10" step="0.25">%</span>
+          </p>
+          <p class="explanation">
+            This models the "live like a resident" strategy. Surplus income (after taxes and living expenses) goes toward loans. 
+            After the aggressive period, you'll make standard amortized payments on any remaining balance.
+          </p>
+        </div>
+      </div>
     </div>
     
     <button type="submit">Calculate Optimal Strategy</button>
@@ -345,6 +531,28 @@
         </div>
       </div>
       <ul class="reasoning" id="reasoning"></ul>
+      <p class="explanation" id="explanationText"></p>
+      <button type="button" class="share-button" id="shareButton">
+        📋 Copy link to these results
+      </button>
+    </div>
+    
+    <div class="card aggressive-results" id="aggressiveResults" style="display: none;">
+      <h4>⚡ Aggressive Payoff Scenario</h4>
+      <p id="aggressiveDescription"></p>
+      <div class="comparison-grid">
+        <div class="comparison-item" id="aggressiveItem">
+          <div class="comparison-label">Aggressive Payoff</div>
+          <div class="comparison-value" id="aggressiveNPV"></div>
+          <div class="comparison-label" id="aggressiveTime"></div>
+        </div>
+        <div class="comparison-item" id="bestStrategyItem">
+          <div class="comparison-label" id="bestStrategyLabel">Best Other Strategy</div>
+          <div class="comparison-value" id="bestStrategyNPV"></div>
+          <div class="comparison-label" id="bestStrategyTime"></div>
+        </div>
+      </div>
+      <p class="explanation" id="aggressiveExplanation"></p>
     </div>
     
     <div class="card">
@@ -364,6 +572,23 @@
       </table>
     </div>
   </div>
+  
+  <footer class="footer">
+    <div class="footer-links">
+      <a href="/methodology.html">Methodology & Assumptions</a>
+      <a href="https://github.com/frontalcluster/med-debt-optimizer" target="_blank">Source Code</a>
+    </div>
+    <p>
+      <strong>Disclaimer:</strong> This tool provides estimates for educational purposes only. 
+      It is not financial, tax, or legal advice. Loan calculations involve assumptions that may not 
+      reflect your actual situation. Consult a qualified financial advisor before making decisions 
+      about your student loans.
+    </p>
+    <p class="last-updated">
+      Last updated: February 2025. Data sources: HHS Poverty Guidelines (2024), IRS Tax Brackets (2024), 
+      Medscape Physician Compensation Report (2024), Federal Student Aid.
+    </p>
+  </footer>
   
   <script type="module" src="/src/main.ts"></script>
 </body>

@@ -4,9 +4,18 @@ import {
   getAllSpecialtyKeys,
   getSpecialty,
   STATE_TAX_RATES,
+  calculateAggressivePayoff,
 } from './index.js';
 
-import type { UserInputs, StrategyResult, Recommendation, TrainingStage, FilingStatus } from './core/types.js';
+import type { 
+  UserInputs, 
+  StrategyResult, 
+  Recommendation, 
+  TrainingStage, 
+  FilingStatus,
+} from './core/types.js';
+
+import type { AggressivePayoffParams, AggressivePayoffResult } from './core/calculations.js';
 
 // ============================================
 // DOM Elements
@@ -106,6 +115,28 @@ function getFormInputs(): UserInputs {
   };
 }
 
+function getAggressiveParams(inputs: UserInputs): AggressivePayoffParams | null {
+  const aggressiveEnabled = (document.getElementById('aggressivePayoff') as HTMLInputElement).checked;
+  if (!aggressiveEnabled) return null;
+  
+  const getValue = (id: string): number => {
+    const el = document.getElementById(id) as HTMLInputElement | HTMLSelectElement;
+    return parseFloat(el.value) || 0;
+  };
+  
+  const specialty = getSpecialty(inputs.career.specialty);
+  
+  return {
+    loanBalance: inputs.loans.totalBalance,
+    interestRate: getValue('aggressiveRefiRate') / 100,
+    trainingYearsRemaining: inputs.career.trainingYearsRemaining,
+    attendingSalary: inputs.career.expectedAttendingSalary || specialty.medianAttendingSalary,
+    livingExpenses: getValue('livingExpenses'),
+    aggressiveYears: getValue('aggressiveYears'),
+    discountRate: inputs.preferences.discountRate,
+  };
+}
+
 function calculateTrainingRemaining(currentStage: string, typicalYears: number): number {
   const stageYears: Record<string, number> = {
     ms4: typicalYears,
@@ -123,6 +154,57 @@ function calculateTrainingRemaining(currentStage: string, typicalYears: number):
 }
 
 // ============================================
+// URL Parameter Handling
+// ============================================
+
+function encodeFormToURL(): string {
+  const params = new URLSearchParams();
+  
+  // All form fields to encode
+  const fields = [
+    'totalDebt', 'interestRate', 'pslfPayments', 'specialty', 'currentStage',
+    'pslfEligible', 'agi', 'familySize', 'filingStatus', 'spouseAgi', 'state',
+    'discountRate', 'pslfConfidence', 'saveAvailable',
+    'aggressivePayoff', 'livingExpenses', 'aggressiveYears', 'aggressiveRefiRate'
+  ];
+  
+  for (const field of fields) {
+    const el = document.getElementById(field) as HTMLInputElement | HTMLSelectElement;
+    if (!el) continue;
+    
+    if (el.type === 'checkbox') {
+      params.set(field, (el as HTMLInputElement).checked ? '1' : '0');
+    } else {
+      params.set(field, el.value);
+    }
+  }
+  
+  return `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+}
+
+function loadFormFromURL(): boolean {
+  const params = new URLSearchParams(window.location.search);
+  if (params.size === 0) return false;
+  
+  for (const [key, value] of params) {
+    const el = document.getElementById(key) as HTMLInputElement | HTMLSelectElement;
+    if (!el) continue;
+    
+    if (el.type === 'checkbox') {
+      (el as HTMLInputElement).checked = value === '1';
+    } else {
+      el.value = value;
+    }
+  }
+  
+  // Trigger any change handlers
+  document.getElementById('filingStatus')?.dispatchEvent(new Event('change'));
+  document.getElementById('aggressivePayoff')?.dispatchEvent(new Event('change'));
+  
+  return true;
+}
+
+// ============================================
 // Results Display
 // ============================================
 
@@ -135,7 +217,37 @@ function formatMoney(amount: number): string {
   }).format(amount);
 }
 
-function displayResults(results: StrategyResult[], recommendation: Recommendation) {
+function generateExplanation(recommendation: Recommendation, inputs: UserInputs): string {
+  const dti = recommendation.keyMetrics.debtToIncomeRatio;
+  const strategy = recommendation.primaryStrategy.strategyName;
+  
+  let explanation = '';
+  
+  if (strategy === 'PSLF') {
+    explanation = `PSLF is recommended because your debt-to-income ratio of ${dti.toFixed(2)} means the tax-free forgiveness value significantly exceeds what you'd pay through other strategies. `;
+    if (dti > 1.5) {
+      explanation += `With debt exceeding 1.5x your expected income, forgiveness strategies almost always win. `;
+    }
+    explanation += `The key is maintaining employment at a qualifying employer for the full 10 years.`;
+  } else if (strategy.includes('Refinance')) {
+    explanation = `Refinancing is recommended because your debt-to-income ratio of ${dti.toFixed(2)} is low enough that aggressive payoff saves more than forgiveness would provide. `;
+    explanation += `You'll pay more per month, but you'll be debt-free faster and pay less total interest.`;
+  } else {
+    explanation = `${strategy} is recommended as the best available IDR option given your inputs. `;
+    if (!inputs.personal.pslfEligibleEmployer) {
+      explanation += `If you move to a PSLF-eligible employer, PSLF would likely be more favorable.`;
+    }
+  }
+  
+  return explanation;
+}
+
+function displayResults(
+  results: StrategyResult[], 
+  recommendation: Recommendation,
+  aggressiveResult: AggressivePayoffResult | null,
+  inputs: UserInputs
+) {
   resultsDiv.classList.add('visible');
   
   // Recommendation box
@@ -151,6 +263,50 @@ function displayResults(results: StrategyResult[], recommendation: Recommendatio
   
   const reasoningEl = document.getElementById('reasoning')!;
   reasoningEl.innerHTML = recommendation.reasoning.map(r => `<li>${r}</li>`).join('');
+  
+  document.getElementById('explanationText')!.textContent = generateExplanation(recommendation, inputs);
+  
+  // Aggressive payoff results
+  const aggressiveResultsDiv = document.getElementById('aggressiveResults')!;
+  if (aggressiveResult) {
+    aggressiveResultsDiv.style.display = 'block';
+    
+    const livingExpenses = (document.getElementById('livingExpenses') as HTMLInputElement).value;
+    const aggressiveYears = (document.getElementById('aggressiveYears') as HTMLSelectElement).value;
+    
+    document.getElementById('aggressiveDescription')!.textContent = 
+      `Living on ${formatMoney(parseInt(livingExpenses))}/year for ${aggressiveYears} years after training, ` +
+      `you'd pay ${formatMoney(aggressiveResult.monthlyPaymentAggressive)}/month toward loans.`;
+    
+    document.getElementById('aggressiveNPV')!.textContent = formatMoney(aggressiveResult.npv);
+    document.getElementById('aggressiveTime')!.textContent = 
+      `Debt-free in ${aggressiveResult.yearsToPayoff} years`;
+    
+    document.getElementById('bestStrategyLabel')!.textContent = recommendation.primaryStrategy.strategyName;
+    document.getElementById('bestStrategyNPV')!.textContent = formatMoney(recommendation.primaryStrategy.npv);
+    document.getElementById('bestStrategyTime')!.textContent = 
+      `${recommendation.primaryStrategy.totalYears} years`;
+    
+    // Highlight winner
+    const aggressiveItem = document.getElementById('aggressiveItem')!;
+    const bestItem = document.getElementById('bestStrategyItem')!;
+    aggressiveItem.classList.remove('winner');
+    bestItem.classList.remove('winner');
+    
+    if (aggressiveResult.npv < recommendation.primaryStrategy.npv) {
+      aggressiveItem.classList.add('winner');
+      document.getElementById('aggressiveExplanation')!.textContent = 
+        `Aggressive payoff wins by ${formatMoney(recommendation.primaryStrategy.npv - aggressiveResult.npv)} (NPV). ` +
+        `You'd be debt-free ${recommendation.primaryStrategy.totalYears - aggressiveResult.yearsToPayoff} years sooner.`;
+    } else {
+      bestItem.classList.add('winner');
+      document.getElementById('aggressiveExplanation')!.textContent = 
+        `${recommendation.primaryStrategy.strategyName} wins by ${formatMoney(aggressiveResult.npv - recommendation.primaryStrategy.npv)} (NPV). ` +
+        `The forgiveness value exceeds what you'd save through aggressive payoff.`;
+    }
+  } else {
+    aggressiveResultsDiv.style.display = 'none';
+  }
   
   // Results table
   const tableBody = document.getElementById('resultsTable')!;
@@ -191,7 +347,11 @@ form.addEventListener('submit', (e) => {
   const results = compareAllStrategies(inputs);
   const recommendation = generateRecommendation(inputs, results);
   
-  displayResults(results, recommendation);
+  // Calculate aggressive payoff if enabled
+  const aggressiveParams = getAggressiveParams(inputs);
+  const aggressiveResult = aggressiveParams ? calculateAggressivePayoff(aggressiveParams) : null;
+  
+  displayResults(results, recommendation, aggressiveResult, inputs);
 });
 
 // Update AGI when stage changes (convenience)
@@ -223,6 +383,31 @@ document.getElementById('filingStatus')!.addEventListener('change', (e) => {
   spouseGroup.style.display = status === 'single' ? 'none' : 'flex';
 });
 
+// Toggle aggressive payoff section
+document.getElementById('aggressivePayoff')!.addEventListener('change', (e) => {
+  const checked = (e.target as HTMLInputElement).checked;
+  const content = document.getElementById('aggressiveContent')!;
+  content.classList.toggle('visible', checked);
+});
+
+// Share button
+document.getElementById('shareButton')!.addEventListener('click', async () => {
+  const url = encodeFormToURL();
+  
+  try {
+    await navigator.clipboard.writeText(url);
+    const button = document.getElementById('shareButton')!;
+    const originalText = button.textContent;
+    button.textContent = '✓ Copied!';
+    setTimeout(() => {
+      button.textContent = originalText;
+    }, 2000);
+  } catch (err) {
+    // Fallback for browsers without clipboard API
+    prompt('Copy this link:', url);
+  }
+});
+
 // ============================================
 // Initialize
 // ============================================
@@ -232,5 +417,12 @@ initStateDropdown();
 
 // Hide spouse income initially
 document.getElementById('spouseAgi')!.parentElement!.style.display = 'none';
+
+// Load from URL if parameters present
+const hasParams = loadFormFromURL();
+if (hasParams) {
+  // Auto-calculate if URL had parameters
+  form.dispatchEvent(new Event('submit'));
+}
 
 console.log('Med Debt Optimizer loaded');

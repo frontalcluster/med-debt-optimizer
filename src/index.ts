@@ -4,3 +4,7 @@ export * from './core/constants.js';
 export * from './core/specialties.js';
 export * from './core/calculations.js';
 export * from './core/strategies.js';
+
+// Re-export specific items for convenience
+export { calculateAggressivePayoff } from './core/calculations.js';
+export type { AggressivePayoffParams, AggressivePayoffResult } from './core/calculations.js';

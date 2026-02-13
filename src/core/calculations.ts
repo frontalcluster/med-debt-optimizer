@@ -347,3 +347,195 @@ export function formatCurrency(amount: number): string {
     maximumFractionDigits: 0,
   }).format(amount);
 }
+
+// ============================================
+// Aggressive Payoff Calculation
+// ============================================
+
+export interface AggressivePayoffParams {
+  loanBalance: number;
+  interestRate: number;
+  trainingYearsRemaining: number;
+  attendingSalary: number;
+  livingExpenses: number;        // annual living expenses during aggressive period
+  aggressiveYears: number;       // how many years to "live like a resident"
+  discountRate: number;
+}
+
+export interface AggressivePayoffResult {
+  totalPayments: number;
+  totalInterest: number;
+  yearsToPayoff: number;
+  monthsToPayoff: number;
+  npv: number;
+  yearlyBreakdown: {
+    year: number;
+    payment: number;
+    principal: number;
+    interest: number;
+    endingBalance: number;
+    phase: 'training' | 'aggressive' | 'standard';
+  }[];
+  monthlyPaymentDuringTraining: number;
+  monthlyPaymentAggressive: number;
+  monthlyPaymentStandard: number;
+}
+
+export function calculateAggressivePayoff(params: AggressivePayoffParams): AggressivePayoffResult {
+  const {
+    loanBalance,
+    interestRate,
+    trainingYearsRemaining,
+    attendingSalary,
+    livingExpenses,
+    aggressiveYears,
+    discountRate,
+  } = params;
+  
+  // Estimate taxes (simplified - ~30% effective rate for attending)
+  const effectiveTaxRate = 0.30;
+  const afterTaxIncome = attendingSalary * (1 - effectiveTaxRate);
+  
+  // During aggressive period: all income above living expenses goes to loans
+  const annualAggressivePayment = Math.max(0, afterTaxIncome - livingExpenses);
+  const monthlyAggressivePayment = annualAggressivePayment / 12;
+  
+  // During training: interest-only or minimum (we'll use interest-only as floor)
+  const monthlyInterestOnly = (loanBalance * interestRate) / 12;
+  const monthlyTrainingPayment = monthlyInterestOnly;
+  
+  const yearlyBreakdown: AggressivePayoffResult['yearlyBreakdown'] = [];
+  let balance = loanBalance;
+  let totalPayments = 0;
+  let totalInterest = 0;
+  let year = 0;
+  let months = 0;
+  
+  // Phase 1: Training years (interest-only payments)
+  for (let y = 0; y < trainingYearsRemaining && balance > 0; y++) {
+    year++;
+    let yearPayment = 0;
+    let yearInterest = 0;
+    let yearPrincipal = 0;
+    const startBalance = balance;
+    
+    for (let m = 0; m < 12 && balance > 0; m++) {
+      const monthInterest = balance * (interestRate / 12);
+      const payment = Math.min(monthlyTrainingPayment, balance + monthInterest);
+      const principal = Math.max(0, payment - monthInterest);
+      
+      balance = balance + monthInterest - payment;
+      yearPayment += payment;
+      yearInterest += monthInterest;
+      yearPrincipal += principal;
+      totalPayments += payment;
+      totalInterest += monthInterest;
+      months++;
+    }
+    
+    yearlyBreakdown.push({
+      year,
+      payment: Math.round(yearPayment),
+      principal: Math.round(yearPrincipal),
+      interest: Math.round(yearInterest),
+      endingBalance: Math.round(Math.max(0, balance)),
+      phase: 'training',
+    });
+  }
+  
+  // Phase 2: Aggressive payoff years
+  for (let y = 0; y < aggressiveYears && balance > 0; y++) {
+    year++;
+    let yearPayment = 0;
+    let yearInterest = 0;
+    let yearPrincipal = 0;
+    const startBalance = balance;
+    
+    for (let m = 0; m < 12 && balance > 0; m++) {
+      const monthInterest = balance * (interestRate / 12);
+      const payment = Math.min(monthlyAggressivePayment, balance + monthInterest);
+      const principal = payment - monthInterest;
+      
+      balance = Math.max(0, balance + monthInterest - payment);
+      yearPayment += payment;
+      yearInterest += monthInterest;
+      yearPrincipal += principal;
+      totalPayments += payment;
+      totalInterest += monthInterest;
+      months++;
+      
+      if (balance <= 0) break;
+    }
+    
+    yearlyBreakdown.push({
+      year,
+      payment: Math.round(yearPayment),
+      principal: Math.round(yearPrincipal),
+      interest: Math.round(yearInterest),
+      endingBalance: Math.round(Math.max(0, balance)),
+      phase: 'aggressive',
+    });
+  }
+  
+  // Phase 3: Standard payments on remaining balance (if any)
+  if (balance > 0) {
+    const remainingTermYears = 10; // standard 10-year term on remainder
+    const monthlyStandard = calculateAmortizationPayment(balance, interestRate, remainingTermYears);
+    
+    for (let y = 0; y < remainingTermYears && balance > 0; y++) {
+      year++;
+      let yearPayment = 0;
+      let yearInterest = 0;
+      let yearPrincipal = 0;
+      
+      for (let m = 0; m < 12 && balance > 0; m++) {
+        const monthInterest = balance * (interestRate / 12);
+        const payment = Math.min(monthlyStandard, balance + monthInterest);
+        const principal = payment - monthInterest;
+        
+        balance = Math.max(0, balance + monthInterest - payment);
+        yearPayment += payment;
+        yearInterest += monthInterest;
+        yearPrincipal += principal;
+        totalPayments += payment;
+        totalInterest += monthInterest;
+        months++;
+        
+        if (balance <= 0) break;
+      }
+      
+      yearlyBreakdown.push({
+        year,
+        payment: Math.round(yearPayment),
+        principal: Math.round(yearPrincipal),
+        interest: Math.round(yearInterest),
+        endingBalance: Math.round(Math.max(0, balance)),
+        phase: 'standard',
+      });
+      
+      if (balance <= 0) break;
+    }
+  }
+  
+  // Calculate NPV
+  const annualPayments = yearlyBreakdown.map(y => y.payment);
+  const npv = calculateNPV(annualPayments, 0, 0, discountRate);
+  
+  // Calculate standard payment for remaining balance after aggressive (for display)
+  const balanceAfterAggressive = yearlyBreakdown.find(y => y.phase === 'aggressive' && y.endingBalance > 0)?.endingBalance || 0;
+  const monthlyStandardPayment = balanceAfterAggressive > 0 
+    ? calculateAmortizationPayment(balanceAfterAggressive, interestRate, 10)
+    : 0;
+  
+  return {
+    totalPayments: Math.round(totalPayments),
+    totalInterest: Math.round(totalInterest),
+    yearsToPayoff: year,
+    monthsToPayoff: months,
+    npv,
+    yearlyBreakdown,
+    monthlyPaymentDuringTraining: Math.round(monthlyTrainingPayment),
+    monthlyPaymentAggressive: Math.round(monthlyAggressivePayment),
+    monthlyPaymentStandard: Math.round(monthlyStandardPayment),
+  };
+}
