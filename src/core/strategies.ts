@@ -4,6 +4,7 @@ import type {
   Recommendation,
   IncomeProjection,
   QuickStartInputs,
+  PSLFSalaryPremiumResult,
 } from './types.js';
 
 import {
@@ -15,6 +16,7 @@ import {
   calculateNPV,
   calculateAmortizationPayment,
   getDebtToIncomeRatio,
+  calculatePSLFSalaryPremium,
 } from './calculations.js';
 
 import { IDR_PLANS, DEFAULTS, PSLF, TRAINING_SALARIES } from './constants.js';
@@ -368,6 +370,23 @@ export function generateRecommendation(
     );
   }
   
+  // PSLF Salary Premium calculation
+  const pslfResult = results.find(r => r.strategyName === 'PSLF');
+  const bestNonPslfResult = results.find(r => r.strategyName !== 'PSLF');
+  let pslfSalaryPremium: PSLFSalaryPremiumResult | undefined;
+
+  if (pslfResult && bestNonPslfResult) {
+    pslfSalaryPremium = calculatePSLFSalaryPremium({
+      pslfNPV: pslfResult.npv,
+      bestNonPslfNPV: bestNonPslfResult.npv,
+      pslfYearsRemaining: pslfResult.totalYears,
+      discountRate: inputs.preferences.discountRate,
+      attendingSalary: inputs.career.expectedAttendingSalary || specialty.medianAttendingSalary,
+      filingStatus: inputs.personal.filingStatus,
+      state: inputs.personal.state,
+    });
+  }
+
   return {
     primaryStrategy: best,
     alternativeStrategy: npvDifference < 25000 ? secondBest : undefined,
@@ -377,6 +396,7 @@ export function generateRecommendation(
       debtToIncomeRatio: dti,
       totalSavingsVsRefi: savingsVsRefi,
       forgivenessBenefit: best.forgivenessAmount - best.taxOnForgiveness,
+      pslfSalaryPremium,
     },
   };
 }

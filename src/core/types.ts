@@ -119,6 +119,24 @@ export interface FilingComparison {
   annualSavings: number;
 }
 
+export interface PSLFSalaryPremiumParams {
+  pslfNPV: number;
+  bestNonPslfNPV: number;
+  pslfYearsRemaining: number;
+  discountRate: number;
+  attendingSalary: number;
+  filingStatus: FilingStatus;
+  state: string;
+}
+
+export interface PSLFSalaryPremiumResult {
+  annualPremiumRequired: number;
+  monthlyPremiumRequired: number;
+  pslfNPVBenefit: number;
+  effectiveMarginalRate: number;
+  annuityFactor: number;
+}
+
 export interface Recommendation {
   primaryStrategy: StrategyResult;
   alternativeStrategy?: StrategyResult;
@@ -128,6 +146,7 @@ export interface Recommendation {
     debtToIncomeRatio: number;
     totalSavingsVsRefi: number;
     forgivenessBenefit: number;
+    pslfSalaryPremium?: PSLFSalaryPremiumResult;
   };
 }
 

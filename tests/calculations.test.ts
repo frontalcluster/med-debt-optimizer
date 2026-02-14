@@ -15,6 +15,7 @@ import {
   getDebtToIncomeRatio,
   compareFilingStatus,
   calculateAggressivePayoff,
+  calculatePSLFSalaryPremium,
 } from '../src/core/calculations.js';
 
 import {
@@ -423,5 +424,90 @@ describe('calculateAggressivePayoff', () => {
     // Should pay off $200k in ~1 year
     expect(result.yearsToPayoff).toBeLessThanOrEqual(2);
     expect(result.monthlyPaymentAggressive).toBeGreaterThan(15000);
+  });
+});
+
+// ============================================
+// PSLF Salary Premium Tests
+// ============================================
+
+describe('calculatePSLFSalaryPremium', () => {
+  it('calculates a positive premium when PSLF is beneficial', () => {
+    const result = calculatePSLFSalaryPremium({
+      pslfNPV: 120000,
+      bestNonPslfNPV: 220000,
+      pslfYearsRemaining: 10,
+      discountRate: 0.05,
+      attendingSalary: 275000,
+      filingStatus: 'single',
+      state: 'CA',
+    });
+
+    expect(result.annualPremiumRequired).toBeGreaterThan(0);
+    expect(result.pslfNPVBenefit).toBe(100000);
+    expect(result.monthlyPremiumRequired).toBe(Math.round(result.annualPremiumRequired / 12));
+  });
+
+  it('returns zero when PSLF is not beneficial', () => {
+    const result = calculatePSLFSalaryPremium({
+      pslfNPV: 250000,
+      bestNonPslfNPV: 200000,
+      pslfYearsRemaining: 10,
+      discountRate: 0.05,
+      attendingSalary: 275000,
+      filingStatus: 'single',
+      state: 'CA',
+    });
+
+    expect(result.annualPremiumRequired).toBe(0);
+    expect(result.pslfNPVBenefit).toBe(0);
+  });
+
+  it('shorter timeline produces higher annual premium', () => {
+    const params = {
+      pslfNPV: 120000,
+      bestNonPslfNPV: 220000,
+      discountRate: 0.05,
+      attendingSalary: 275000,
+      filingStatus: 'single' as const,
+      state: 'CA',
+    };
+
+    const long = calculatePSLFSalaryPremium({ ...params, pslfYearsRemaining: 10 });
+    const short = calculatePSLFSalaryPremium({ ...params, pslfYearsRemaining: 5 });
+
+    expect(short.annualPremiumRequired).toBeGreaterThan(long.annualPremiumRequired);
+  });
+
+  it('higher state tax produces higher premium', () => {
+    const params = {
+      pslfNPV: 120000,
+      bestNonPslfNPV: 220000,
+      pslfYearsRemaining: 10,
+      discountRate: 0.05,
+      attendingSalary: 275000,
+      filingStatus: 'single' as const,
+    };
+
+    const highTax = calculatePSLFSalaryPremium({ ...params, state: 'CA' });
+    const noTax = calculatePSLFSalaryPremium({ ...params, state: 'TX' });
+
+    expect(highTax.annualPremiumRequired).toBeGreaterThan(noTax.annualPremiumRequired);
+    expect(highTax.effectiveMarginalRate).toBeGreaterThan(noTax.effectiveMarginalRate);
+  });
+
+  it('calculates correct annuity factor for 10yr at 5%', () => {
+    const result = calculatePSLFSalaryPremium({
+      pslfNPV: 120000,
+      bestNonPslfNPV: 220000,
+      pslfYearsRemaining: 10,
+      discountRate: 0.05,
+      attendingSalary: 275000,
+      filingStatus: 'single',
+      state: 'CA',
+    });
+
+    // Annuity factor for 10 years at 5% ≈ 7.722
+    expect(result.annuityFactor).toBeCloseTo(7.722, 1);
   });
 });

@@ -7,6 +7,8 @@ import type {
   TaxBracket,
   FilingComparison,
   TrainingStage,
+  PSLFSalaryPremiumParams,
+  PSLFSalaryPremiumResult,
 } from './types.js';
 
 import {
@@ -346,6 +348,62 @@ export function formatCurrency(amount: number): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+// ============================================
+// PSLF Salary Premium Calculation
+// ============================================
+
+export function calculatePSLFSalaryPremium(
+  params: PSLFSalaryPremiumParams
+): PSLFSalaryPremiumResult {
+  const {
+    pslfNPV,
+    bestNonPslfNPV,
+    pslfYearsRemaining,
+    discountRate,
+    attendingSalary,
+    filingStatus,
+    state,
+  } = params;
+
+  const pslfNPVBenefit = bestNonPslfNPV - pslfNPV;
+
+  if (pslfNPVBenefit <= 0) {
+    return {
+      annualPremiumRequired: 0,
+      monthlyPremiumRequired: 0,
+      pslfNPVBenefit: 0,
+      effectiveMarginalRate: 0,
+      annuityFactor: 0,
+    };
+  }
+
+  // Estimate marginal tax rate at attending salary level
+  const federalTaxBase = calculateFederalTax(attendingSalary, filingStatus);
+  const federalTaxPlus = calculateFederalTax(attendingSalary + 10000, filingStatus);
+  const marginalFederalRate = (federalTaxPlus - federalTaxBase) / 10000;
+  const marginalStateRate = STATE_TAX_RATES[state] || 0.05;
+  const effectiveMarginalRate = marginalFederalRate + marginalStateRate;
+
+  // Annuity factor: present value of $1/year for n years at discount rate r
+  const r = discountRate;
+  const n = pslfYearsRemaining;
+  const annuityFactor = r === 0 ? n : (1 - Math.pow(1 + r, -n)) / r;
+
+  // Solve: pslfBenefit = P * (1 - marginalRate) * annuityFactor
+  const afterTaxFactor = (1 - effectiveMarginalRate) * annuityFactor;
+  const annualPremiumRequired = afterTaxFactor > 0
+    ? Math.round(pslfNPVBenefit / afterTaxFactor)
+    : 0;
+
+  return {
+    annualPremiumRequired,
+    monthlyPremiumRequired: Math.round(annualPremiumRequired / 12),
+    pslfNPVBenefit: Math.round(pslfNPVBenefit),
+    effectiveMarginalRate: Math.round(effectiveMarginalRate * 1000) / 1000,
+    annuityFactor: Math.round(annuityFactor * 1000) / 1000,
+  };
 }
 
 // ============================================

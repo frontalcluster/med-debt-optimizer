@@ -16,6 +16,7 @@ import type {
 } from './core/types.js';
 
 import type { AggressivePayoffParams, AggressivePayoffResult } from './core/calculations.js';
+import { sanitizeNumericValue } from './core/utils.js';
 
 // ============================================
 // DOM Elements
@@ -65,7 +66,7 @@ function initStateDropdown() {
 function getFormInputs(): UserInputs {
   const getValue = (id: string): number => {
     const el = document.getElementById(id) as HTMLInputElement;
-    return parseFloat(el.value) || 0;
+    return sanitizeNumericValue(el.value);
   };
   
   const getChecked = (id: string): boolean => {
@@ -121,7 +122,7 @@ function getAggressiveParams(inputs: UserInputs): AggressivePayoffParams | null 
   
   const getValue = (id: string): number => {
     const el = document.getElementById(id) as HTMLInputElement | HTMLSelectElement;
-    return parseFloat(el.value) || 0;
+    return sanitizeNumericValue(el.value);
   };
   
   const specialty = getSpecialty(inputs.career.specialty);
@@ -265,7 +266,42 @@ function displayResults(
   reasoningEl.innerHTML = recommendation.reasoning.map(r => `<li>${r}</li>`).join('');
   
   document.getElementById('explanationText')!.textContent = generateExplanation(recommendation, inputs);
-  
+
+  // PSLF Salary Premium display
+  const pslfPremiumCard = document.getElementById('pslfPremiumCard')!;
+  const premium = recommendation.keyMetrics.pslfSalaryPremium;
+
+  if (premium && premium.annualPremiumRequired > 0) {
+    pslfPremiumCard.style.display = 'block';
+
+    const specialtyData = getSpecialty(inputs.career.specialty);
+    const attendingSalary = inputs.career.expectedAttendingSalary || specialtyData.medianAttendingSalary;
+
+    document.getElementById('pslfPremiumAnnual')!.textContent =
+      formatMoney(premium.annualPremiumRequired) + '/yr';
+    document.getElementById('pslfPremiumMonthly')!.textContent =
+      formatMoney(premium.monthlyPremiumRequired) + '/mo';
+    document.getElementById('pslfPremiumBenefit')!.textContent =
+      formatMoney(premium.pslfNPVBenefit);
+
+    document.getElementById('pslfPremiumDescription')!.textContent =
+      `To make leaving a PSLF-eligible job worthwhile, a non-PSLF position would need to pay at least ` +
+      `${formatMoney(premium.annualPremiumRequired)} more per year ` +
+      `(${formatMoney(attendingSalary + premium.annualPremiumRequired)} total vs ` +
+      `${formatMoney(attendingSalary)} at a PSLF-eligible employer).`;
+
+    // Find the PSLF result to get its timeline
+    const pslfStrategy = results.find(r => r.strategyName === 'PSLF');
+    const pslfYears = pslfStrategy ? pslfStrategy.totalYears : recommendation.primaryStrategy.totalYears;
+
+    document.getElementById('pslfPremiumExplanation')!.textContent =
+      `This accounts for taxes on the extra income (${(premium.effectiveMarginalRate * 100).toFixed(1)}% marginal rate) ` +
+      `and the time value of money over the ${pslfYears}-year PSLF repayment period. ` +
+      `A private practice job paying less than this premium would not offset the PSLF forgiveness benefit.`;
+  } else {
+    pslfPremiumCard.style.display = 'none';
+  }
+
   // Aggressive payoff results
   const aggressiveResultsDiv = document.getElementById('aggressiveResults')!;
   if (aggressiveResult) {
@@ -275,7 +311,7 @@ function displayResults(
     const aggressiveYears = (document.getElementById('aggressiveYears') as HTMLSelectElement).value;
     
     document.getElementById('aggressiveDescription')!.textContent = 
-      `Living on ${formatMoney(parseInt(livingExpenses))}/year for ${aggressiveYears} years after training, ` +
+      `Living on ${formatMoney(sanitizeNumericValue(livingExpenses))}/year for ${aggressiveYears} years after training, ` +
       `you'd pay ${formatMoney(aggressiveResult.monthlyPaymentAggressive)}/month toward loans.`;
     
     document.getElementById('aggressiveNPV')!.textContent = formatMoney(aggressiveResult.npv);
