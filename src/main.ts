@@ -297,12 +297,12 @@ function displayResults(
       aggressiveItem.classList.add('winner');
       const yearsSooner = recommendation.primaryStrategy.totalYears - aggressiveResult.totalYears;
       document.getElementById('aggressiveExplanation')!.textContent =
-        `Aggressive payoff wins by ${formatMoney(recommendation.primaryStrategy.npv - aggressiveResult.npv)} (NPV). ` +
+        `Aggressive payoff wins by ${formatMoney(recommendation.primaryStrategy.npv - aggressiveResult.npv)} (net present value). ` +
         (yearsSooner > 0 ? `You'd be debt-free ${yearsSooner} years sooner.` : `You'd be debt-free faster.`);
     } else {
       bestItem.classList.add('winner');
       document.getElementById('aggressiveExplanation')!.textContent = 
-        `${recommendation.primaryStrategy.strategyName} wins by ${formatMoney(aggressiveResult.npv - recommendation.primaryStrategy.npv)} (NPV). ` +
+        `${recommendation.primaryStrategy.strategyName} wins by ${formatMoney(aggressiveResult.npv - recommendation.primaryStrategy.npv)} (net present value). ` +
         `The forgiveness value exceeds what you'd save through aggressive payoff.`;
     }
   } else {
