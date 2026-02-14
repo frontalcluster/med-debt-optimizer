@@ -14,6 +14,7 @@ import {
   estimateTaxOnForgiveness,
   getDebtToIncomeRatio,
   compareFilingStatus,
+  calculateAggressivePayoff,
 } from '../src/core/calculations.js';
 
 import {
@@ -379,5 +380,48 @@ describe('compareAllStrategies', () => {
       expect(result.yearlyBreakdown.length).toBeGreaterThan(0);
       expect(result.yearlyBreakdown[0].startingBalance).toBe(baseInputs.loans.totalBalance);
     }
+  });
+});
+
+// ============================================
+// Aggressive Payoff Tests
+// ============================================
+
+describe('calculateAggressivePayoff', () => {
+  it('yearsToPayoff excludes training years', () => {
+    const result = calculateAggressivePayoff({
+      loanBalance: 300000,
+      interestRate: 0.055,
+      trainingYearsRemaining: 4,
+      attendingSalary: 350000,
+      livingExpenses: 90000,
+      aggressiveYears: 3,
+      discountRate: 0.05,
+    });
+
+    // With ~$350k salary, 30% tax, $90k expenses = ~$155k/year to loans
+    // $300k balance should be paid off well within 3 aggressive years
+    expect(result.yearsToPayoff).toBeLessThanOrEqual(3);
+    expect(result.yearsToPayoff).not.toBeGreaterThan(3);
+    // Must NOT include training years
+    expect(result.totalYears).toBeGreaterThan(result.yearsToPayoff);
+    expect(result.totalYears).toBe(result.yearsToPayoff + 4); // 4 training years
+  });
+
+  it('pays off high-income low-debt quickly', () => {
+    const result = calculateAggressivePayoff({
+      loanBalance: 200000,
+      interestRate: 0.05,
+      trainingYearsRemaining: 3,
+      attendingSalary: 400000,
+      livingExpenses: 80000,
+      aggressiveYears: 3,
+      discountRate: 0.05,
+    });
+
+    // $400k salary * 0.70 - $80k = $200k/year to loans
+    // Should pay off $200k in ~1 year
+    expect(result.yearsToPayoff).toBeLessThanOrEqual(2);
+    expect(result.monthlyPaymentAggressive).toBeGreaterThan(15000);
   });
 });

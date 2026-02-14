@@ -365,8 +365,9 @@ export interface AggressivePayoffParams {
 export interface AggressivePayoffResult {
   totalPayments: number;
   totalInterest: number;
-  yearsToPayoff: number;
-  monthsToPayoff: number;
+  yearsToPayoff: number;       // years after training until debt-free
+  monthsToPayoff: number;      // months after training until debt-free
+  totalYears: number;          // total timeline including training (for NPV)
   npv: number;
   yearlyBreakdown: {
     year: number;
@@ -410,6 +411,8 @@ export function calculateAggressivePayoff(params: AggressivePayoffParams): Aggre
   let totalInterest = 0;
   let year = 0;
   let months = 0;
+  let postTrainingYears = 0;
+  let postTrainingMonths = 0;
   
   // Phase 1: Training years (interest-only payments)
   for (let y = 0; y < trainingYearsRemaining && balance > 0; y++) {
@@ -446,16 +449,17 @@ export function calculateAggressivePayoff(params: AggressivePayoffParams): Aggre
   // Phase 2: Aggressive payoff years
   for (let y = 0; y < aggressiveYears && balance > 0; y++) {
     year++;
+    postTrainingYears++;
     let yearPayment = 0;
     let yearInterest = 0;
     let yearPrincipal = 0;
     const startBalance = balance;
-    
+
     for (let m = 0; m < 12 && balance > 0; m++) {
       const monthInterest = balance * (interestRate / 12);
       const payment = Math.min(monthlyAggressivePayment, balance + monthInterest);
       const principal = payment - monthInterest;
-      
+
       balance = Math.max(0, balance + monthInterest - payment);
       yearPayment += payment;
       yearInterest += monthInterest;
@@ -463,10 +467,11 @@ export function calculateAggressivePayoff(params: AggressivePayoffParams): Aggre
       totalPayments += payment;
       totalInterest += monthInterest;
       months++;
-      
+      postTrainingMonths++;
+
       if (balance <= 0) break;
     }
-    
+
     yearlyBreakdown.push({
       year,
       payment: Math.round(yearPayment),
@@ -484,15 +489,16 @@ export function calculateAggressivePayoff(params: AggressivePayoffParams): Aggre
     
     for (let y = 0; y < remainingTermYears && balance > 0; y++) {
       year++;
+      postTrainingYears++;
       let yearPayment = 0;
       let yearInterest = 0;
       let yearPrincipal = 0;
-      
+
       for (let m = 0; m < 12 && balance > 0; m++) {
         const monthInterest = balance * (interestRate / 12);
         const payment = Math.min(monthlyStandard, balance + monthInterest);
         const principal = payment - monthInterest;
-        
+
         balance = Math.max(0, balance + monthInterest - payment);
         yearPayment += payment;
         yearInterest += monthInterest;
@@ -500,6 +506,7 @@ export function calculateAggressivePayoff(params: AggressivePayoffParams): Aggre
         totalPayments += payment;
         totalInterest += monthInterest;
         months++;
+        postTrainingMonths++;
         
         if (balance <= 0) break;
       }
@@ -530,8 +537,9 @@ export function calculateAggressivePayoff(params: AggressivePayoffParams): Aggre
   return {
     totalPayments: Math.round(totalPayments),
     totalInterest: Math.round(totalInterest),
-    yearsToPayoff: year,
-    monthsToPayoff: months,
+    yearsToPayoff: postTrainingYears,
+    monthsToPayoff: postTrainingMonths,
+    totalYears: year,
     npv,
     yearlyBreakdown,
     monthlyPaymentDuringTraining: Math.round(monthlyTrainingPayment),

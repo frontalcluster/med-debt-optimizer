@@ -279,8 +279,8 @@ function displayResults(
       `you'd pay ${formatMoney(aggressiveResult.monthlyPaymentAggressive)}/month toward loans.`;
     
     document.getElementById('aggressiveNPV')!.textContent = formatMoney(aggressiveResult.npv);
-    document.getElementById('aggressiveTime')!.textContent = 
-      `Debt-free in ${aggressiveResult.yearsToPayoff} years`;
+    document.getElementById('aggressiveTime')!.textContent =
+      `Debt-free ${aggressiveResult.yearsToPayoff} years after training`;
     
     document.getElementById('bestStrategyLabel')!.textContent = recommendation.primaryStrategy.strategyName;
     document.getElementById('bestStrategyNPV')!.textContent = formatMoney(recommendation.primaryStrategy.npv);
@@ -295,9 +295,10 @@ function displayResults(
     
     if (aggressiveResult.npv < recommendation.primaryStrategy.npv) {
       aggressiveItem.classList.add('winner');
-      document.getElementById('aggressiveExplanation')!.textContent = 
+      const yearsSooner = recommendation.primaryStrategy.totalYears - aggressiveResult.totalYears;
+      document.getElementById('aggressiveExplanation')!.textContent =
         `Aggressive payoff wins by ${formatMoney(recommendation.primaryStrategy.npv - aggressiveResult.npv)} (NPV). ` +
-        `You'd be debt-free ${recommendation.primaryStrategy.totalYears - aggressiveResult.yearsToPayoff} years sooner.`;
+        (yearsSooner > 0 ? `You'd be debt-free ${yearsSooner} years sooner.` : `You'd be debt-free faster.`);
     } else {
       bestItem.classList.add('winner');
       document.getElementById('aggressiveExplanation')!.textContent = 
