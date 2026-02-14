@@ -368,12 +368,158 @@
       font-weight: 600;
     }
     
+    /* Career Path Comparison */
+    .path-card {
+      text-align: left;
+      padding: 1.25rem;
+    }
+
+    .path-header {
+      font-weight: 700;
+      font-size: 1rem;
+      margin-bottom: 0.25rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--border);
+    }
+
+    .path-header.pslf { color: var(--accent); border-color: var(--accent); }
+    .path-header.private { color: var(--warning); border-color: var(--warning); }
+
+    .path-subtitle {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+
+    .path-metrics {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .path-metric {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+
+    .path-metric-label {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .path-metric-value {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .path-card.winner {
+      border: 2px solid var(--success);
+      background: #f0fdf4;
+    }
+
+    .salary-comparison {
+      margin-top: 1.5rem;
+      padding: 1.25rem;
+      background: #f8fafc;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .salary-comparison h4 {
+      margin-bottom: 0.75rem;
+      font-size: 0.95rem;
+    }
+
+    .salary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .salary-value {
+      font-weight: 600;
+    }
+
+    .salary-input {
+      width: 150px;
+      padding: 0.4rem 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 0.9rem;
+      text-align: right;
+    }
+
+    .breakeven-container {
+      margin: 1rem 0;
+    }
+
+    .breakeven-bar {
+      height: 12px;
+      background: #e5e7eb;
+      border-radius: 6px;
+      position: relative;
+      overflow: visible;
+    }
+
+    .breakeven-fill {
+      height: 100%;
+      border-radius: 6px;
+      transition: width 0.3s, background 0.3s;
+      background: var(--warning);
+    }
+
+    .breakeven-marker {
+      position: absolute;
+      top: -4px;
+      width: 2px;
+      height: 20px;
+      background: var(--text);
+      transition: left 0.3s;
+    }
+
+    .breakeven-label {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 0.25rem;
+      text-align: right;
+    }
+
+    .verdict {
+      margin-top: 0.75rem;
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      font-weight: 600;
+      text-align: center;
+      font-size: 0.95rem;
+    }
+
+    .verdict.pslf-wins {
+      background: var(--accent-light);
+      color: var(--accent);
+    }
+
+    .verdict.private-wins {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
     @media (max-width: 600px) {
       .metrics, .comparison-grid {
         grid-template-columns: 1fr;
       }
       .form-grid {
         grid-template-columns: 1fr;
+      }
+      .salary-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+      }
+      .salary-input {
+        width: 100%;
       }
     }
   </style>
@@ -537,6 +683,96 @@
       </button>
     </div>
     
+    <!-- Career Path Comparison (shown when PSLF + aggressive payoff both active) -->
+    <div class="card" id="careerPathComparison" style="display: none;">
+      <h3>Career Path Comparison</h3>
+      <p id="careerPathDescription">Compare your financial trajectory under two career paths.</p>
+
+      <div class="comparison-grid">
+        <!-- Path A: PSLF -->
+        <div class="comparison-item path-card" id="pathPSLF">
+          <div class="path-header pslf">Path A: PSLF Route</div>
+          <div class="path-subtitle">Academic / Non-Profit</div>
+          <div class="path-metrics">
+            <div class="path-metric">
+              <span class="path-metric-label">Repayment</span>
+              <span class="path-metric-value" id="pslfPathPlan"></span>
+            </div>
+            <div class="path-metric">
+              <span class="path-metric-label">Total Cost (NPV)</span>
+              <span class="path-metric-value" id="pslfPathNPV"></span>
+            </div>
+            <div class="path-metric">
+              <span class="path-metric-label">Timeline</span>
+              <span class="path-metric-value" id="pslfPathTimeline"></span>
+            </div>
+            <div class="path-metric">
+              <span class="path-metric-label">Monthly Payment</span>
+              <span class="path-metric-value" id="pslfPathMonthly"></span>
+            </div>
+            <div class="path-metric">
+              <span class="path-metric-label">Forgiveness</span>
+              <span class="path-metric-value" id="pslfPathForgiveness"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Path B: Private Practice -->
+        <div class="comparison-item path-card" id="pathPrivate">
+          <div class="path-header private">Path B: Private Practice</div>
+          <div class="path-subtitle">Aggressive Payoff</div>
+          <div class="path-metrics">
+            <div class="path-metric">
+              <span class="path-metric-label">Repayment</span>
+              <span class="path-metric-value" id="privatePathPlan"></span>
+            </div>
+            <div class="path-metric">
+              <span class="path-metric-label">Total Cost (NPV)</span>
+              <span class="path-metric-value" id="privatePathNPV"></span>
+            </div>
+            <div class="path-metric">
+              <span class="path-metric-label">Timeline</span>
+              <span class="path-metric-value" id="privatePathTimeline"></span>
+            </div>
+            <div class="path-metric">
+              <span class="path-metric-label">Monthly Payment</span>
+              <span class="path-metric-value" id="privatePathMonthly"></span>
+            </div>
+            <div class="path-metric">
+              <span class="path-metric-label">Forgiveness</span>
+              <span class="path-metric-value" id="privatePathForgiveness"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Salary Comparison -->
+      <div class="salary-comparison" id="salaryComparisonSection">
+        <h4>Salary Comparison</h4>
+        <div class="salary-row">
+          <label>PSLF-eligible salary (median):</label>
+          <span class="salary-value" id="pslfSalaryDisplay"></span>
+        </div>
+        <div class="salary-row">
+          <label for="privateSalaryInput">Private practice offer:</label>
+          <input type="text" id="privateSalaryInput" class="salary-input" placeholder="Enter salary">
+        </div>
+        <div class="breakeven-container">
+          <div class="breakeven-bar">
+            <div class="breakeven-fill" id="breakevenFill"></div>
+            <div class="breakeven-marker" id="breakevenMarker"></div>
+          </div>
+          <div class="breakeven-label" id="breakevenLabel">Breakeven: loading...</div>
+        </div>
+        <div class="verdict" id="verdictBox">
+          <span class="verdict-text" id="verdictText"></span>
+        </div>
+      </div>
+
+      <p class="explanation" id="careerPathExplanation"></p>
+    </div>
+
+    <!-- Fallback: standalone PSLF premium (shown when no aggressive payoff) -->
     <div class="card" id="pslfPremiumCard" style="display: none;">
       <h3>PSLF Salary Premium Analysis</h3>
       <p id="pslfPremiumDescription"></p>
@@ -557,8 +793,9 @@
       <p class="explanation" id="pslfPremiumExplanation"></p>
     </div>
 
+    <!-- Fallback: standalone aggressive payoff (shown when no PSLF) -->
     <div class="card aggressive-results" id="aggressiveResults" style="display: none;">
-      <h4>⚡ Aggressive Payoff Scenario</h4>
+      <h4>Aggressive Payoff Scenario</h4>
       <p id="aggressiveDescription"></p>
       <div class="comparison-grid">
         <div class="comparison-item" id="aggressiveItem">

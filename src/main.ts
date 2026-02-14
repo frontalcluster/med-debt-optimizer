@@ -27,6 +27,12 @@ const resultsDiv = document.getElementById('results') as HTMLDivElement;
 const specialtySelect = document.getElementById('specialty') as HTMLSelectElement;
 const stateSelect = document.getElementById('state') as HTMLSelectElement;
 
+// Career path comparison state (persisted across real-time salary updates)
+let lastResults: StrategyResult[] | null = null;
+let lastRecommendation: Recommendation | null = null;
+let lastAggressiveResult: AggressivePayoffResult | null = null;
+let lastInputs: UserInputs | null = null;
+
 // ============================================
 // Initialize Dropdowns
 // ============================================
@@ -243,6 +249,244 @@ function generateExplanation(recommendation: Recommendation, inputs: UserInputs)
   return explanation;
 }
 
+// ============================================
+// Career Path Comparison
+// ============================================
+
+function displayCareerPathSection(
+  results: StrategyResult[],
+  recommendation: Recommendation,
+  aggressiveResult: AggressivePayoffResult | null,
+  inputs: UserInputs
+) {
+  const careerPathCard = document.getElementById('careerPathComparison')!;
+  const pslfPremiumCard = document.getElementById('pslfPremiumCard')!;
+  const aggressiveResultsDiv = document.getElementById('aggressiveResults')!;
+
+  const premium = recommendation.keyMetrics.pslfSalaryPremium;
+  const hasPSLF = premium && premium.annualPremiumRequired > 0;
+  const hasAggressive = aggressiveResult !== null;
+
+  // Hide all three first
+  careerPathCard.style.display = 'none';
+  pslfPremiumCard.style.display = 'none';
+  aggressiveResultsDiv.style.display = 'none';
+
+  if (hasPSLF && hasAggressive) {
+    // Unified career path comparison
+    careerPathCard.style.display = 'block';
+    displayCareerPathComparison(results, recommendation, aggressiveResult!, inputs, premium!);
+  } else if (hasPSLF) {
+    // Fallback: standalone PSLF premium card
+    displayPSLFPremiumFallback(results, recommendation, inputs, premium!);
+  } else if (hasAggressive) {
+    // Fallback: standalone aggressive payoff card
+    displayAggressiveFallback(recommendation, aggressiveResult!);
+  }
+}
+
+function displayCareerPathComparison(
+  results: StrategyResult[],
+  recommendation: Recommendation,
+  aggressiveResult: AggressivePayoffResult,
+  inputs: UserInputs,
+  premium: NonNullable<Recommendation['keyMetrics']['pslfSalaryPremium']>
+) {
+  const specialtyData = getSpecialty(inputs.career.specialty);
+  const attendingSalary = inputs.career.expectedAttendingSalary || specialtyData.medianAttendingSalary;
+
+  // Find PSLF strategy result
+  const pslfResult = results.find(r => r.strategyName === 'PSLF');
+  if (!pslfResult) return;
+
+  // Path A: PSLF
+  document.getElementById('pslfPathPlan')!.textContent = pslfResult.strategyName;
+  document.getElementById('pslfPathNPV')!.textContent = formatMoney(pslfResult.npv);
+  document.getElementById('pslfPathTimeline')!.textContent = `${pslfResult.totalYears} years`;
+  document.getElementById('pslfPathMonthly')!.textContent =
+    `${formatMoney(pslfResult.monthlyPaymentRange.min)} - ${formatMoney(pslfResult.monthlyPaymentRange.max)}`;
+  document.getElementById('pslfPathForgiveness')!.textContent = formatMoney(pslfResult.forgivenessAmount);
+
+  // Path B: Private Practice (Aggressive Payoff)
+  document.getElementById('privatePathPlan')!.textContent = 'Aggressive Payoff';
+  document.getElementById('privatePathNPV')!.textContent = formatMoney(aggressiveResult.npv);
+  document.getElementById('privatePathTimeline')!.textContent =
+    `${aggressiveResult.yearsToPayoff} years after training`;
+  document.getElementById('privatePathMonthly')!.textContent =
+    formatMoney(aggressiveResult.monthlyPaymentAggressive);
+  document.getElementById('privatePathForgiveness')!.textContent = '$0';
+
+  // Highlight NPV winner on the path cards
+  const pathPSLF = document.getElementById('pathPSLF')!;
+  const pathPrivate = document.getElementById('pathPrivate')!;
+  pathPSLF.classList.remove('winner');
+  pathPrivate.classList.remove('winner');
+
+  if (pslfResult.npv <= aggressiveResult.npv) {
+    pathPSLF.classList.add('winner');
+  } else {
+    pathPrivate.classList.add('winner');
+  }
+
+  // Salary comparison section
+  document.getElementById('pslfSalaryDisplay')!.textContent = formatMoney(attendingSalary);
+
+  const breakevenSalary = attendingSalary + premium.annualPremiumRequired;
+  document.getElementById('breakevenLabel')!.textContent =
+    `Breakeven: ${formatMoney(breakevenSalary)}/yr`;
+
+  // Set default private salary to breakeven
+  const salaryInput = document.getElementById('privateSalaryInput') as HTMLInputElement;
+  if (!salaryInput.value || salaryInput.dataset.autoSet === 'true') {
+    salaryInput.value = breakevenSalary.toLocaleString('en-US');
+    salaryInput.dataset.autoSet = 'true';
+  }
+
+  // Update breakeven bar and verdict
+  updateBreakevenBar(attendingSalary, premium.annualPremiumRequired);
+
+  // Explanation
+  const pslfYears = pslfResult.totalYears;
+  document.getElementById('careerPathExplanation')!.textContent =
+    `This comparison accounts for taxes on extra income (${(premium.effectiveMarginalRate * 100).toFixed(1)}% marginal rate) ` +
+    `and the time value of money over the ${pslfYears}-year PSLF period. ` +
+    `The breakeven salary is what a private practice job must pay to offset the PSLF forgiveness benefit.`;
+}
+
+function updateBreakevenBar(pslfSalary?: number, annualPremium?: number) {
+  // Use stored values if not provided (for event listener calls)
+  if (pslfSalary === undefined || annualPremium === undefined) {
+    if (!lastRecommendation || !lastInputs) return;
+    const premium = lastRecommendation.keyMetrics.pslfSalaryPremium;
+    if (!premium || premium.annualPremiumRequired <= 0) return;
+
+    const specialtyData = getSpecialty(lastInputs.career.specialty);
+    pslfSalary = lastInputs.career.expectedAttendingSalary || specialtyData.medianAttendingSalary;
+    annualPremium = premium.annualPremiumRequired;
+  }
+
+  const salaryInput = document.getElementById('privateSalaryInput') as HTMLInputElement;
+  const enteredSalary = sanitizeNumericValue(salaryInput.value);
+  const salaryDiff = enteredSalary - pslfSalary;
+  const breakevenSalary = pslfSalary + annualPremium;
+
+  // Clear auto-set flag once user edits
+  if (salaryInput.dataset.autoSet === 'true') {
+    salaryInput.dataset.autoSet = 'false';
+  }
+
+  // Breakeven fill: percentage of premium threshold reached
+  const fillPercent = annualPremium > 0
+    ? Math.min(100, Math.max(0, (salaryDiff / annualPremium) * 100))
+    : 0;
+
+  const fillEl = document.getElementById('breakevenFill')!;
+  fillEl.style.width = `${fillPercent}%`;
+  fillEl.style.background = fillPercent >= 100 ? 'var(--success)' : 'var(--warning)';
+
+  // Breakeven marker at 100% position
+  const markerEl = document.getElementById('breakevenMarker')!;
+  markerEl.style.left = '100%';
+
+  // Verdict
+  const verdictBox = document.getElementById('verdictBox')!;
+  const verdictText = document.getElementById('verdictText')!;
+
+  verdictBox.classList.remove('pslf-wins', 'private-wins');
+
+  if (enteredSalary <= 0) {
+    verdictText.textContent = 'Enter a private practice salary to see the verdict.';
+  } else if (enteredSalary >= breakevenSalary) {
+    verdictBox.classList.add('private-wins');
+    const surplus = enteredSalary - breakevenSalary;
+    verdictText.textContent = surplus > 0
+      ? `Private practice wins \u2014 you'd earn ${formatMoney(surplus)}/yr above the breakeven threshold.`
+      : `At exactly the breakeven point \u2014 either path is financially equivalent.`;
+  } else {
+    verdictBox.classList.add('pslf-wins');
+    const shortfall = breakevenSalary - enteredSalary;
+    verdictText.textContent =
+      `PSLF wins \u2014 the private offer is ${formatMoney(shortfall)}/yr below what you'd need to offset loan forgiveness.`;
+  }
+}
+
+function displayPSLFPremiumFallback(
+  results: StrategyResult[],
+  recommendation: Recommendation,
+  inputs: UserInputs,
+  premium: NonNullable<Recommendation['keyMetrics']['pslfSalaryPremium']>
+) {
+  const pslfPremiumCard = document.getElementById('pslfPremiumCard')!;
+  pslfPremiumCard.style.display = 'block';
+
+  const specialtyData = getSpecialty(inputs.career.specialty);
+  const attendingSalary = inputs.career.expectedAttendingSalary || specialtyData.medianAttendingSalary;
+
+  document.getElementById('pslfPremiumAnnual')!.textContent =
+    formatMoney(premium.annualPremiumRequired) + '/yr';
+  document.getElementById('pslfPremiumMonthly')!.textContent =
+    formatMoney(premium.monthlyPremiumRequired) + '/mo';
+  document.getElementById('pslfPremiumBenefit')!.textContent =
+    formatMoney(premium.pslfNPVBenefit);
+
+  document.getElementById('pslfPremiumDescription')!.textContent =
+    `To make leaving a PSLF-eligible job worthwhile, a non-PSLF position would need to pay at least ` +
+    `${formatMoney(premium.annualPremiumRequired)} more per year ` +
+    `(${formatMoney(attendingSalary + premium.annualPremiumRequired)} total vs ` +
+    `${formatMoney(attendingSalary)} at a PSLF-eligible employer).`;
+
+  const pslfStrategy = results.find(r => r.strategyName === 'PSLF');
+  const pslfYears = pslfStrategy ? pslfStrategy.totalYears : recommendation.primaryStrategy.totalYears;
+
+  document.getElementById('pslfPremiumExplanation')!.textContent =
+    `This accounts for taxes on the extra income (${(premium.effectiveMarginalRate * 100).toFixed(1)}% marginal rate) ` +
+    `and the time value of money over the ${pslfYears}-year PSLF repayment period. ` +
+    `A private practice job paying less than this premium would not offset the PSLF forgiveness benefit.`;
+}
+
+function displayAggressiveFallback(
+  recommendation: Recommendation,
+  aggressiveResult: AggressivePayoffResult
+) {
+  const aggressiveResultsDiv = document.getElementById('aggressiveResults')!;
+  aggressiveResultsDiv.style.display = 'block';
+
+  const livingExpenses = (document.getElementById('livingExpenses') as HTMLInputElement).value;
+  const aggressiveYears = (document.getElementById('aggressiveYears') as HTMLSelectElement).value;
+
+  document.getElementById('aggressiveDescription')!.textContent =
+    `Living on ${formatMoney(sanitizeNumericValue(livingExpenses))}/year for ${aggressiveYears} years after training, ` +
+    `you'd pay ${formatMoney(aggressiveResult.monthlyPaymentAggressive)}/month toward loans.`;
+
+  document.getElementById('aggressiveNPV')!.textContent = formatMoney(aggressiveResult.npv);
+  document.getElementById('aggressiveTime')!.textContent =
+    `Debt-free ${aggressiveResult.yearsToPayoff} years after training`;
+
+  document.getElementById('bestStrategyLabel')!.textContent = recommendation.primaryStrategy.strategyName;
+  document.getElementById('bestStrategyNPV')!.textContent = formatMoney(recommendation.primaryStrategy.npv);
+  document.getElementById('bestStrategyTime')!.textContent =
+    `${recommendation.primaryStrategy.totalYears} years`;
+
+  // Highlight winner
+  const aggressiveItem = document.getElementById('aggressiveItem')!;
+  const bestItem = document.getElementById('bestStrategyItem')!;
+  aggressiveItem.classList.remove('winner');
+  bestItem.classList.remove('winner');
+
+  if (aggressiveResult.npv < recommendation.primaryStrategy.npv) {
+    aggressiveItem.classList.add('winner');
+    const yearsSooner = recommendation.primaryStrategy.totalYears - aggressiveResult.totalYears;
+    document.getElementById('aggressiveExplanation')!.textContent =
+      `Aggressive payoff wins by ${formatMoney(recommendation.primaryStrategy.npv - aggressiveResult.npv)} (net present value). ` +
+      (yearsSooner > 0 ? `You'd be debt-free ${yearsSooner} years sooner.` : `You'd be debt-free faster.`);
+  } else {
+    bestItem.classList.add('winner');
+    document.getElementById('aggressiveExplanation')!.textContent =
+      `${recommendation.primaryStrategy.strategyName} wins by ${formatMoney(aggressiveResult.npv - recommendation.primaryStrategy.npv)} (net present value). ` +
+      `The forgiveness value exceeds what you'd save through aggressive payoff.`;
+  }
+}
+
 function displayResults(
   results: StrategyResult[], 
   recommendation: Recommendation,
@@ -267,84 +511,15 @@ function displayResults(
   
   document.getElementById('explanationText')!.textContent = generateExplanation(recommendation, inputs);
 
-  // PSLF Salary Premium display
-  const pslfPremiumCard = document.getElementById('pslfPremiumCard')!;
-  const premium = recommendation.keyMetrics.pslfSalaryPremium;
+  // Store state for real-time salary updates
+  lastResults = results;
+  lastRecommendation = recommendation;
+  lastAggressiveResult = aggressiveResult;
+  lastInputs = inputs;
 
-  if (premium && premium.annualPremiumRequired > 0) {
-    pslfPremiumCard.style.display = 'block';
+  // Career path / PSLF premium / aggressive payoff display
+  displayCareerPathSection(results, recommendation, aggressiveResult, inputs);
 
-    const specialtyData = getSpecialty(inputs.career.specialty);
-    const attendingSalary = inputs.career.expectedAttendingSalary || specialtyData.medianAttendingSalary;
-
-    document.getElementById('pslfPremiumAnnual')!.textContent =
-      formatMoney(premium.annualPremiumRequired) + '/yr';
-    document.getElementById('pslfPremiumMonthly')!.textContent =
-      formatMoney(premium.monthlyPremiumRequired) + '/mo';
-    document.getElementById('pslfPremiumBenefit')!.textContent =
-      formatMoney(premium.pslfNPVBenefit);
-
-    document.getElementById('pslfPremiumDescription')!.textContent =
-      `To make leaving a PSLF-eligible job worthwhile, a non-PSLF position would need to pay at least ` +
-      `${formatMoney(premium.annualPremiumRequired)} more per year ` +
-      `(${formatMoney(attendingSalary + premium.annualPremiumRequired)} total vs ` +
-      `${formatMoney(attendingSalary)} at a PSLF-eligible employer).`;
-
-    // Find the PSLF result to get its timeline
-    const pslfStrategy = results.find(r => r.strategyName === 'PSLF');
-    const pslfYears = pslfStrategy ? pslfStrategy.totalYears : recommendation.primaryStrategy.totalYears;
-
-    document.getElementById('pslfPremiumExplanation')!.textContent =
-      `This accounts for taxes on the extra income (${(premium.effectiveMarginalRate * 100).toFixed(1)}% marginal rate) ` +
-      `and the time value of money over the ${pslfYears}-year PSLF repayment period. ` +
-      `A private practice job paying less than this premium would not offset the PSLF forgiveness benefit.`;
-  } else {
-    pslfPremiumCard.style.display = 'none';
-  }
-
-  // Aggressive payoff results
-  const aggressiveResultsDiv = document.getElementById('aggressiveResults')!;
-  if (aggressiveResult) {
-    aggressiveResultsDiv.style.display = 'block';
-    
-    const livingExpenses = (document.getElementById('livingExpenses') as HTMLInputElement).value;
-    const aggressiveYears = (document.getElementById('aggressiveYears') as HTMLSelectElement).value;
-    
-    document.getElementById('aggressiveDescription')!.textContent = 
-      `Living on ${formatMoney(sanitizeNumericValue(livingExpenses))}/year for ${aggressiveYears} years after training, ` +
-      `you'd pay ${formatMoney(aggressiveResult.monthlyPaymentAggressive)}/month toward loans.`;
-    
-    document.getElementById('aggressiveNPV')!.textContent = formatMoney(aggressiveResult.npv);
-    document.getElementById('aggressiveTime')!.textContent =
-      `Debt-free ${aggressiveResult.yearsToPayoff} years after training`;
-    
-    document.getElementById('bestStrategyLabel')!.textContent = recommendation.primaryStrategy.strategyName;
-    document.getElementById('bestStrategyNPV')!.textContent = formatMoney(recommendation.primaryStrategy.npv);
-    document.getElementById('bestStrategyTime')!.textContent = 
-      `${recommendation.primaryStrategy.totalYears} years`;
-    
-    // Highlight winner
-    const aggressiveItem = document.getElementById('aggressiveItem')!;
-    const bestItem = document.getElementById('bestStrategyItem')!;
-    aggressiveItem.classList.remove('winner');
-    bestItem.classList.remove('winner');
-    
-    if (aggressiveResult.npv < recommendation.primaryStrategy.npv) {
-      aggressiveItem.classList.add('winner');
-      const yearsSooner = recommendation.primaryStrategy.totalYears - aggressiveResult.totalYears;
-      document.getElementById('aggressiveExplanation')!.textContent =
-        `Aggressive payoff wins by ${formatMoney(recommendation.primaryStrategy.npv - aggressiveResult.npv)} (net present value). ` +
-        (yearsSooner > 0 ? `You'd be debt-free ${yearsSooner} years sooner.` : `You'd be debt-free faster.`);
-    } else {
-      bestItem.classList.add('winner');
-      document.getElementById('aggressiveExplanation')!.textContent = 
-        `${recommendation.primaryStrategy.strategyName} wins by ${formatMoney(aggressiveResult.npv - recommendation.primaryStrategy.npv)} (net present value). ` +
-        `The forgiveness value exceeds what you'd save through aggressive payoff.`;
-    }
-  } else {
-    aggressiveResultsDiv.style.display = 'none';
-  }
-  
   // Results table
   const tableBody = document.getElementById('resultsTable')!;
   tableBody.innerHTML = '';
@@ -425,6 +600,13 @@ document.getElementById('aggressivePayoff')!.addEventListener('change', (e) => {
   const checked = (e.target as HTMLInputElement).checked;
   const content = document.getElementById('aggressiveContent')!;
   content.classList.toggle('visible', checked);
+});
+
+// Real-time salary comparison update
+document.getElementById('privateSalaryInput')!.addEventListener('input', () => {
+  if (lastRecommendation && lastAggressiveResult && lastResults && lastInputs) {
+    updateBreakevenBar();
+  }
 });
 
 // Share button
